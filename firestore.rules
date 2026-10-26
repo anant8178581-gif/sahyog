@@ -1,0 +1,262 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Diagnostics / Connection health probe
+    match /test/{docId} {
+      allow read: if isSignedIn();
+    }
+
+    // --- Global Hardened Helpers ---
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Team-Based Data Scoping Helper:
+    // User is only authorized within a team if they exist in that team's members roster
+    function isTeamMember(teamId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+    }
+
+    // Retrieve verified member operational role from team roster
+    function getMemberRole(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role;
+    }
+
+    // Restrict medical emergency actions (status update, triage, acknowledge, resolve) to authorized roles:
+    // Authorized roles are 'Team Leader' and 'Medic'
+    function isAuthorizedEmergencyRole(teamId) {
+      return isTeamMember(teamId) && (
+        getMemberRole(teamId) == 'Team Leader' || getMemberRole(teamId) == 'Medic'
+      );
+    }
+
+    // --- Entity Validation Blueprints ---
+
+    function isValidTeam(data) {
+      return data.keys().hasAll(['id', 'code']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.code is string && data.code.size() > 0 && data.code.size() <= 64;
+    }
+
+    function isValidTeamMember(data) {
+      return data.keys().hasAll(['userId', 'nickname', 'role']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.nickname is string && data.nickname.size() > 0 && data.nickname.size() <= 128 &&
+             data.role is string && (
+               data.role == 'Team Leader' ||
+               data.role == 'Medic' ||
+               data.role == 'Recon' ||
+               data.role == 'Support' ||
+               data.role == 'Operator'
+             );
+    }
+
+    function isValidLocation(data) {
+      return data.keys().hasAll(['userId', 'lat', 'lng', 'updatedAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.lat is number && data.lat >= -90.0 && data.lat <= 90.0 &&
+             data.lng is number && data.lng >= -180.0 && data.lng <= 180.0;
+    }
+
+    function isValidStatus(data) {
+      return data.keys().hasAll(['userId', 'condition', 'statusLabel']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.condition is string && data.condition.size() <= 64 &&
+             data.statusLabel is string && data.statusLabel.size() <= 64;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['id', 'senderId', 'senderName', 'text']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.senderId is string && data.senderId.size() > 0 && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() > 0 && data.senderName.size() <= 128 &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 2048;
+    }
+
+    function isValidMedicalRequest(data) {
+      return data.keys().hasAll(['id', 'reportedBy', 'severity', 'status']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.reportedBy is string && data.reportedBy.size() > 0 && data.reportedBy.size() <= 128 &&
+             data.severity is string && data.severity.size() <= 64 &&
+             data.status is string && (
+               data.status == 'ACTIVE' ||
+               data.status == 'ACKNOWLEDGED' ||
+               data.status == 'RESOLVED'
+             );
+    }
+
+    function isValidCheckpoint(data) {
+      return data.keys().hasAll(['id', 'name', 'type']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.type is string && data.type.size() <= 64;
+    }
+
+    function isValidCallSession(data) {
+      return data.keys().hasAll(['id', 'callerId', 'receiverId', 'status']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.callerId is string && data.callerId.size() > 0 && data.callerId.size() <= 128 &&
+             data.receiverId is string && data.receiverId.size() > 0 && data.receiverId.size() <= 128 &&
+             data.status is string && data.status.size() <= 64;
+    }
+
+    function isValidActivityEvent(data) {
+      return data.keys().hasAll(['id', 'type', 'actor', 'description']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.type is string && data.type.size() <= 64 &&
+             data.actor is string && data.actor.size() <= 128 &&
+             data.description is string && data.description.size() <= 1024;
+    }
+
+    // --- Team Collections & Scoped Subcollections ---
+    match /teams/{teamId} {
+      // Authenticated users can read or initialize a team document
+      allow get: if isSignedIn() && isValidId(teamId);
+      allow list: if false; // Disallow querying across all operational teams
+      allow create: if isSignedIn() && isValidId(teamId) && isValidTeam(incoming());
+      allow update: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId) && isValidTeam(incoming());
+      allow delete: if false;
+
+      // 1. Members Subcollection: Scoped to team
+      match /members/{memberId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                   (isTeamMember(teamId) || request.auth.uid == memberId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                      request.auth.uid == memberId &&
+                      isValidTeamMember(incoming()) &&
+                      incoming().userId == request.auth.uid;
+        allow update: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                      request.auth.uid == memberId &&
+                      isValidTeamMember(incoming()) &&
+                      incoming().userId == existing().userId;
+        allow delete: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                      request.auth.uid == memberId;
+      }
+
+      // 2. Member Locations Subcollection: Scoped to team & own member ID
+      match /locations/{memberId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(memberId) && isTeamMember(teamId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create, update: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                                 isTeamMember(teamId) &&
+                                 request.auth.uid == memberId &&
+                                 isValidLocation(incoming()) &&
+                                 incoming().userId == request.auth.uid;
+        allow delete: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                         isTeamMember(teamId) &&
+                         request.auth.uid == memberId;
+      }
+
+      // 3. Member Statuses Subcollection: Scoped to team & own member ID
+      match /statuses/{memberId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(memberId) && isTeamMember(teamId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create, update: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                                 isTeamMember(teamId) &&
+                                 request.auth.uid == memberId &&
+                                 isValidStatus(incoming()) &&
+                                 incoming().userId == request.auth.uid;
+        allow delete: if isSignedIn() && isValidId(teamId) && isValidId(memberId) &&
+                         isTeamMember(teamId) &&
+                         request.auth.uid == memberId;
+      }
+
+      // 4. Messages Subcollection: Scoped to team; sender must match auth UID
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(messageId) && isTeamMember(teamId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create: if isSignedIn() && isValidId(teamId) && isValidId(messageId) &&
+                         isTeamMember(teamId) &&
+                         incoming().senderId == request.auth.uid &&
+                         isValidChatMessage(incoming());
+        allow update, delete: if false;
+      }
+
+      // 5. Medical Requests / Emergencies:
+      // - Any team member can report an emergency
+      // - Actions (status triage, acknowledge, resolve) are RESTRICTED to authorized roles (Team Leader, Medic)
+      match /medicalRequests/{requestId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(requestId) && isTeamMember(teamId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create: if isSignedIn() && isValidId(teamId) && isValidId(requestId) &&
+                         isTeamMember(teamId) &&
+                         incoming().reportedBy == request.auth.uid &&
+                         isValidMedicalRequest(incoming());
+        allow update: if isSignedIn() && isValidId(teamId) && isValidId(requestId) &&
+                         isTeamMember(teamId) &&
+                         isValidMedicalRequest(incoming()) &&
+                         incoming().id == existing().id &&
+                         incoming().reportedBy == existing().reportedBy &&
+                         isAuthorizedEmergencyRole(teamId);
+        allow delete: if false;
+      }
+
+      // 6. Checkpoints: Scoped to team members
+      match /checkpoints/{checkpointId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(checkpointId) && isTeamMember(teamId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create: if isSignedIn() && isValidId(teamId) && isValidId(checkpointId) &&
+                         isTeamMember(teamId) &&
+                         isValidCheckpoint(incoming());
+        allow update: if isSignedIn() && isValidId(teamId) && isValidId(checkpointId) &&
+                         isTeamMember(teamId) &&
+                         isValidCheckpoint(incoming()) &&
+                         incoming().id == existing().id;
+        allow delete: if isSignedIn() && isValidId(teamId) && isValidId(checkpointId) && isTeamMember(teamId);
+      }
+
+      // 7. WebRTC Voice Calls: Scoped to team & call participants
+      match /calls/{callId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(callId) &&
+                   isTeamMember(teamId) &&
+                   (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create: if isSignedIn() && isValidId(teamId) && isValidId(callId) &&
+                         isTeamMember(teamId) &&
+                         incoming().callerId == request.auth.uid &&
+                         isValidCallSession(incoming());
+        allow update: if isSignedIn() && isValidId(teamId) && isValidId(callId) &&
+                         isTeamMember(teamId) &&
+                         isValidCallSession(incoming()) &&
+                         (existing().callerId == request.auth.uid || existing().receiverId == request.auth.uid);
+        allow delete: if isSignedIn() && isValidId(teamId) && isValidId(callId) &&
+                         isTeamMember(teamId) &&
+                         (existing().callerId == request.auth.uid || existing().receiverId == request.auth.uid);
+
+        match /candidates/{candidateId} {
+          allow read, write: if isSignedIn() && isTeamMember(teamId);
+        }
+      }
+
+      // 8. Activity Timeline Audit Log
+      match /activity/{eventId} {
+        allow get: if isSignedIn() && isValidId(teamId) && isValidId(eventId) && isTeamMember(teamId);
+        allow list: if isSignedIn() && isValidId(teamId) && isTeamMember(teamId);
+        allow create: if isSignedIn() && isValidId(teamId) && isValidId(eventId) &&
+                         isTeamMember(teamId) &&
+                         isValidActivityEvent(incoming());
+        allow update, delete: if false;
+      }
+    }
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "entities": {
+    "Team": {
+      "title": "Team",
+      "description": "Authorized field operational coordination unit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "code"]
+    },
+    "TeamMember": {
+      "title": "TeamMember",
+      "description": "Member authorization and profile within a team",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "nickname": { "type": "string", "maxLength": 128 },
+        "role": {
+          "type": "string",
+          "enum": ["Team Leader", "Medic", "Recon", "Support", "Operator"]
+        },
+        "condition": { "type": "string", "maxLength": 64 },
+        "statusLabel": { "type": "string", "maxLength": 64 },
+        "conditionNote": { "type": "string", "maxLength": 256 },
+        "joinedAt": { "type": "string" },
+        "lastSeen": { "type": "number" },
+        "sharingEnabled": { "type": "boolean" },
+        "isSimulated": { "type": "boolean" },
+        "batteryLevel": { "type": "number" },
+        "isCharging": { "type": "boolean" }
+      },
+      "required": ["userId", "nickname", "role"]
+    },
+    "MemberLocation": {
+      "title": "MemberLocation",
+      "description": "Real-time authorized GPS location telemetry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "accuracy": { "type": "number" },
+        "heading": { "type": "number" },
+        "speed": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "sharingEnabled": { "type": "boolean" }
+      },
+      "required": ["userId", "lat", "lng", "updatedAt"]
+    },
+    "MemberStatus": {
+      "title": "MemberStatus",
+      "description": "Voluntary situational readiness and medical condition",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "condition": { "type": "string", "maxLength": 64 },
+        "statusLabel": { "type": "string", "maxLength": 64 },
+        "note": { "type": "string", "maxLength": 256 },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "condition", "statusLabel"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Encrypted room message communication",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 128 },
+        "senderRole": { "type": "string", "maxLength": 64 },
+        "text": { "type": "string", "maxLength": 2048 },
+        "timestamp": { "type": "number" },
+        "isBroadcast": { "type": "boolean" },
+        "status": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "senderId", "senderName", "text"]
+    },
+    "MedicalRequest": {
+      "title": "MedicalRequest",
+      "description": "Emergency medical or distress beacon request with role-restricted triage",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "reportedBy": { "type": "string", "maxLength": 128 },
+        "reporterName": { "type": "string", "maxLength": 128 },
+        "reporterRole": { "type": "string", "maxLength": 64 },
+        "type": { "type": "string", "maxLength": 64 },
+        "severity": { "type": "string", "maxLength": 64 },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "ACKNOWLEDGED", "RESOLVED"]
+        },
+        "message": { "type": "string", "maxLength": 1024 },
+        "timestamp": { "type": "number" },
+        "resolvedBy": { "type": "string", "maxLength": 128 },
+        "resolvedAt": { "type": "number" }
+      },
+      "required": ["id", "reportedBy", "severity", "status"]
+    },
+    "Checkpoint": {
+      "title": "Checkpoint",
+      "description": "Shared rendezvous coordinate and assembly point",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 512 },
+        "type": { "type": "string", "maxLength": 64 },
+        "isPrimaryAssembly": { "type": "boolean" },
+        "meetingTime": { "type": "string", "maxLength": 64 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "CallSession": {
+      "title": "CallSession",
+      "description": "WebRTC audio signaling session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "callerId": { "type": "string", "maxLength": 128 },
+        "callerName": { "type": "string", "maxLength": 128 },
+        "callerRole": { "type": "string", "maxLength": 64 },
+        "receiverId": { "type": "string", "maxLength": 128 },
+        "receiverName": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 64 },
+        "duration": { "type": "number" },
+        "isMuted": { "type": "boolean" }
+      },
+      "required": ["id", "callerId", "receiverId", "status"]
+    },
+    "ActivityEvent": {
+      "title": "ActivityEvent",
+      "description": "Operational audit log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 64 },
+        "actor": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 1024 },
+        "severity": { "type": "string", "maxLength": 64 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "type", "actor", "description"]
+    }
+  },
+  "firestore": {
+    "/teams/{teamId}": {
+      "schema": "Team",
+      "description": "Team registration and room metadata"
+    },
+    "/teams/{teamId}/members/{memberId}": {
+      "schema": "TeamMember",
+      "description": "Authorized member roster"
+    },
+    "/teams/{teamId}/locations/{memberId}": {
+      "schema": "MemberLocation",
+      "description": "Live GPS location updates"
+    },
+    "/teams/{teamId}/statuses/{memberId}": {
+      "schema": "MemberStatus",
+      "description": "Member conditions and medical status"
+    },
+    "/teams/{teamId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Real-time room chat messages"
+    },
+    "/teams/{teamId}/medicalRequests/{requestId}": {
+      "schema": "MedicalRequest",
+      "description": "Emergency alerts and casualty extractions with role-restricted triage"
+    },
+    "/teams/{teamId}/checkpoints/{checkpointId}": {
+      "schema": "Checkpoint",
+      "description": "Field rally points and markers"
+    },
+    "/teams/{teamId}/calls/{callId}": {
+      "schema": "CallSession",
+      "description": "WebRTC voice call signaling offers and answers"
+    },
+    "/teams/{teamId}/activity/{eventId}": {
+      "schema": "ActivityEvent",
+      "description": "Immutable sector operational timeline"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Remix SAHYOG - Field Team Coordination",
+  "description": "Offline-First Team Communication, Medical Emergency Alerting, Real-time Situational Awareness \u0026 Coordinate Mapping for Defense \u0026 Emergency Response.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

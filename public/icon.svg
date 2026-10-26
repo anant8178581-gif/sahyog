@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14243B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="100" fill="url(#shieldGrad)" />
+  <!-- Winged Shield & Star Icon -->
+  <g transform="translate(256, 256) scale(0.9)" stroke="#FFFFFF" fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Center Shield -->
+    <path d="M0 -140 L90 -80 C90 60, 40 140, 0 170 C-40 140, -90 60, -90 -80 Z" fill="url(#accentGrad)" stroke="#60A5FA" stroke-width="12"/>
+    <!-- Wings left -->
+    <path d="M-90 -60 L-170 -120 L-140 -40 L-190 -40 L-150 20 L-200 40 L-120 70" stroke="#93C5FD" stroke-width="14" />
+    <!-- Wings right -->
+    <path d="M90 -60 L170 -120 L140 -40 L190 -40 L150 20 L200 40 L120 70" stroke="#93C5FD" stroke-width="14" />
+    <!-- Center Medical & Nav Star -->
+    <path d="M0 -60 L0 60 M-60 0 L60 0" stroke="#FFFFFF" stroke-width="20"/>
+    <circle cx="0" cy="0" r="16" fill="#EF4444" stroke="#FFFFFF" stroke-width="8"/>
+  </g>
+</svg>
